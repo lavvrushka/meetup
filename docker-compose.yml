@@ -1,0 +1,66 @@
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    ports:
+      - "9090:9090"
+    depends_on:
+      - dotnetapp
+      - node-exporter
+      - alertmanager
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+
+  alertmanager:
+    image: prom/alertmanager:latest
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+    ports:
+      - "9093:9093"
+
+  alertmanager-bot:
+    image: metalmatze/alertmanager-bot:0.4.3
+    ports:
+      - "8080:8080"
+    environment:
+      TELEGRAM_ADMIN: "1013080412"
+      TELEGRAM_TOKEN: "8395091183:AAGNvxFz6OytiliODc8qmJ5h21GKlY2PzKw"
+    command:
+      - '--alertmanager.url=http://alertmanager:9093'
+      - '--store=bolt'
+      - '--bolt.path=/tmp/bot.db'
+
+  node-exporter:
+    image: prom/node-exporter:latest
+    pid: "host"
+    ports:
+      - "9100:9100"
+
+  dotnetapp:
+    build:
+      context: .
+      dockerfile: dotnetapp/Dockerfile
+    ports:
+      - "5000:80"
+    environment:
+      - ASPNETCORE_URLS=http://+:80
+
+volumes:
+  prometheus_data: {}
+  grafana_data: {}
